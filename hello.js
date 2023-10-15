@@ -1,50 +1,50 @@
 const fs = require('fs');
 
-// Konstanty pro náklady přesahující sklad a pod skladem
 const LOSS_OVER_STOCK = 50;
 const LOSS_UNDER_STOCK = 150;
 
 class VaccineMonteCarloSimulator {
     constructor() {
-        // Generátor náhodných čísel
         this.randomGen = () => Math.random();
     }
 
     determineOptimalStockLevels() {
-        // Vytvoření souborů pro zápis dat
         const costStream = fs.createWriteStream('CSV/CostAnalysis.csv');
         const riskStream = fs.createWriteStream('CSV/RiskAnalysis.csv');
+        const deviationStream = fs.createWriteStream('CSV/StdDeviationPerIterations.csv');
 
-        // Hlavičky souborů
         costStream.write('Stock, Average Cost\n');
         riskStream.write('Stock, Risk Percentage\n');
+        deviationStream.write('Iterations, StdDeviation\n');
 
-        // Simulace pro různé množství skladu
         for (let inventoryLevel = 1000; inventoryLevel <= 10000; inventoryLevel += 10) {
             const averageCost = this.simulateCost(inventoryLevel);
             const riskRatio = this.evaluateRisk(inventoryLevel);
 
-            // Zápis výsledků do souborů
             costStream.write(`${inventoryLevel},${averageCost}\n`);
             riskStream.write(`${inventoryLevel},${riskRatio}\n`);
         }
 
-        // Uzavření souborů
+        for (let runs = 100; runs <= 5000; runs++) {
+            const stdDeviation = this.calculateStdDeviation(runs);
+            deviationStream.write(`${runs},${stdDeviation}\n`);
+        }
+
         costStream.end();
         riskStream.end();
+        deviationStream.end();
     }
 
     simulateCost(stock) {
         const runs = 10000;
         let totalCost = 0;
 
-        // Provedení simulace nákladů
         for (let i = 0; i < runs; i++) {
             const demand = this.generateRandomDemand();
             const cost = this.calculateCost(stock, demand);
             totalCost += cost;
         }
-        // Vrátit průměrný náklad
+
         return totalCost / runs;
     }
 
@@ -52,7 +52,6 @@ class VaccineMonteCarloSimulator {
         const runs = 10000;
         let riskyMonthsCount = 0;
 
-        // Vyhodnocení rizika překročení nákladů
         for (let i = 0; i < runs; i++) {
             const demand = this.generateRandomDemand();
             const cost = this.calculateCost(stock, demand);
@@ -61,12 +60,26 @@ class VaccineMonteCarloSimulator {
                 riskyMonthsCount++;
             }
         }
-        // Vrátit poměr rizikových měsíců
+
         return riskyMonthsCount / runs;
     }
 
+    calculateStdDeviation(iterations) {
+        const costs = [];
+        for (let i = 0; i < iterations; i++) {
+            const demand = this.generateRandomDemand();
+            const cost = this.calculateCost(1000, demand); // assuming a fixed stock of 1000 for this deviation calculation
+            costs.push(cost);
+        }
+
+        const mean = costs.reduce((sum, cost) => sum + cost, 0) / iterations;
+        const squaredDifferences = costs.map(cost => (cost - mean) ** 2);
+        const variance = squaredDifferences.reduce((sum, diff) => sum + diff, 0) / iterations;
+
+        return Math.sqrt(variance);
+    }
+
     calculateCost(stock, demand) {
-        // Výpočet nákladů na základě skladu a poptávky
         if (demand > stock) {
             return (demand - stock) * LOSS_UNDER_STOCK;
         } else {
@@ -75,7 +88,6 @@ class VaccineMonteCarloSimulator {
     }
 
     generateRandomDemand() {
-        // Generování náhodné poptávky na základě pravděpodobnosti
         const prob = this.randomGen();
 
         if (prob < 0.07) return 1000 + Math.floor(Math.random() * 1501);
@@ -88,7 +100,6 @@ class VaccineMonteCarloSimulator {
     }
 }
 
-// Vytvoření instance simulace a spuštění
 const simulator = new VaccineMonteCarloSimulator();
 simulator.determineOptimalStockLevels();
 console.log("Výsledky uloženy do souborů CSV.");
